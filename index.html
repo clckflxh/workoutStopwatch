@@ -7,23 +7,110 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app-shell">
-      <main class="main-screen" aria-label="메인 화면">
-        <section class="hero" aria-label="서비스 소개">
-          <div class="logo" aria-hidden="true">
-            <span class="logo-ring"></span>
-            <span class="logo-ring logo-ring-inner"></span>
-            <span class="logo-dot"></span>
-          </div>
-          <h1>운동 스케줄러</h1>
-          <p>오늘의 운동 루틴을 계획하고 기록해보세요</p>
+    <div class="app-container">
+      <header class="app-header">
+        <h1>운동 스케줄러</h1>
+        <p>일정 저장 후 스톱워치로 계획을 실행하세요.</p>
+      </header>
+
+      <main class="main-screen" aria-live="polite">
+        <section id="home-screen" class="screen active" aria-label="홈 화면">
+          <section class="hero" aria-label="운동 스케줄러 소개">
+            <div class="logo" role="img" aria-label="운동 스케줄러 로고">🏋️</div>
+            <h2>운동 스케줄러</h2>
+            <p>2026~2030 달력에서 일정을 만들고 스톱워치로 연동하세요.</p>
+          </section>
+        </section>
+
+        <section id="scheduler-screen" class="screen" aria-label="스케줄러 화면" hidden>
+          <section class="card scheduler-card">
+            <div class="scheduler-header">
+              <button id="prev-year-btn" type="button" class="btn small">previous</button>
+              <h2 id="calendar-year-title">2026년 운동 달력</h2>
+              <button id="next-year-btn" type="button" class="btn small">next</button>
+            </div>
+            <div id="calendar" class="calendar-scroll" aria-label="달력"></div>
+          </section>
+        </section>
+
+        <section id="stopwatch-screen" class="screen" aria-label="스톱워치 화면" hidden>
+          <section class="card stopwatch-card">
+            <h2 id="stopwatch-bodypart">운동스케줄 없음</h2>
+            <p id="stopwatch-exercise" class="subtitle">오늘 일정이 없습니다.</p>
+
+            <p id="timer-meta" class="timer-meta" hidden></p>
+            <p id="timer" class="timer" aria-live="assertive">00:00:00:00</p>
+            <p id="rest-label" class="rest-label" hidden>쉬는시간</p>
+            <p id="timer-flash" class="timer-flash" hidden></p>
+
+            <div class="timer-actions">
+              <button id="start-btn" type="button" class="btn primary">start</button>
+              <button id="stop-btn" type="button" class="btn">stop</button>
+              <button id="reset-btn" type="button" class="btn">reset</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <h3>스케줄러 연동 목록</h3>
+            <ul id="queue-list" class="plan-list"></ul>
+          </section>
         </section>
       </main>
 
       <nav class="bottom-nav" aria-label="하단 내비게이션">
-        <button class="nav-button active" type="button">스케줄러</button>
-        <button class="nav-button" type="button">스톱워치</button>
+        <button class="nav-button active" type="button" aria-current="page" data-target="home-screen">home</button>
+        <button class="nav-button" type="button" data-target="scheduler-screen">스케줄러</button>
+        <button class="nav-button" type="button" data-target="stopwatch-screen">스톱워치</button>
       </nav>
     </div>
+
+    <dialog id="entry-modal" class="entry-modal">
+      <section class="card entry-card">
+        <h3 id="entry-title">운동 입력</h3>
+        <form id="scheduler-form" class="scheduler-form">
+          <label>
+            운동부위
+            <input id="body-part" name="bodyPart" type="text" placeholder="예: 하체" required />
+          </label>
+
+          <div class="exercise-header">
+            <h4>운동 항목</h4>
+            <div class="header-actions">
+              <button type="button" id="add-exercise-btn" class="btn small">+ 항목 추가</button>
+              <button type="button" id="send-plan-btn" class="btn small">보내기</button>
+              <button type="button" id="import-plan-btn" class="btn small">가져오기</button>
+            </div>
+          </div>
+
+          <div id="transfer-panel" class="transfer-panel" hidden>
+            <p id="transfer-help" class="transfer-help"></p>
+            <div id="transfer-calendar" class="transfer-calendar"></div>
+          </div>
+
+          <div id="exercise-rows" class="exercise-rows"></div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary">저장</button>
+            <button type="button" id="close-entry-btn" class="btn">닫기</button>
+          </div>
+        </form>
+      </section>
+    </dialog>
+
+    <template id="exercise-row-template">
+      <div class="exercise-row">
+        <input type="text" name="exerciseName" placeholder="종목명" required />
+        <input type="number" name="sets" min="1" placeholder="세트수" required />
+        <input type="number" name="reps" min="1" placeholder="개수" required />
+        <button type="button" class="btn remove-row">삭제</button>
+      </div>
+    </template>
+
+    <dialog id="status-modal" class="status-modal">
+      <p id="modal-message"></p>
+      <button id="modal-close-btn" class="btn primary" type="button">확인</button>
+    </dialog>
+
+    <script src="app.js"></script>
   </body>
 </html>
