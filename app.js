@@ -1,4 +1,4 @@
-const SCHEDULE_STORAGE_KEY = 'workout-schedules-2026-v5';
+const SCHEDULE_STORAGE_KEY = 'workout-schedules-2026-v6';
 const YEARS = [2026, 2027, 2028, 2029, 2030];
 const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -37,6 +37,20 @@ const startBtn = document.getElementById('start-btn');
 const stopBtn = document.getElementById('stop-btn');
 const resetBtn = document.getElementById('reset-btn');
 
+const restSettingBtn = document.getElementById('rest-setting-btn');
+const restSettingModal = document.getElementById('rest-setting-modal');
+const restSecondsInput = document.getElementById('rest-seconds-input');
+const restSaveBtn = document.getElementById('rest-save-btn');
+const restClearBtn = document.getElementById('rest-clear-btn');
+const restCloseBtn = document.getElementById('rest-close-btn');
+
+const statsCard = document.getElementById('stats-card');
+const statsSummary = document.getElementById('stats-summary');
+const statsDetailBtn = document.getElementById('stats-detail-btn');
+const statsDetailModal = document.getElementById('stats-detail-modal');
+const statsDetailList = document.getElementById('stats-detail-list');
+const statsDetailCloseBtn = document.getElementById('stats-detail-close-btn');
+
 const statusModal = document.getElementById('status-modal');
 const modalMessageEl = document.getElementById('modal-message');
 const modalCloseBtn = document.getElementById('modal-close-btn');
@@ -56,8 +70,12 @@ let timerStartedAt = 0;
 let infoTimeoutId = null;
 let infoVisible = false;
 let autoCloseTimeoutId = null;
-
 let touchStartX = 0;
+
+let restLimitSeconds = null;
+let workoutDurations = [];
+let restDurations = [];
+let actionLogs = [];
 
 function loadSchedules() {
   try {
@@ -230,6 +248,7 @@ function hideTransferPanel() {
   transferMode = null;
   transferPanel.hidden = true;
   transferCalendar.innerHTML = '';
+  transferPanel.classList.remove('fade-in');
 }
 
 function selectedFormPlan() {
@@ -276,11 +295,7 @@ function renderTransferCalendar(modeValue) {
       const mini = document.createElement('div');
       mini.className = 'mini-list';
       const plan = schedules[dateKey];
-      if (plan?.exercises?.length) {
-        mini.innerHTML = plan.exercises.map((e) => e.exerciseName).join('<br />');
-      } else {
-        mini.textContent = '-';
-      }
+      mini.innerHTML = plan?.exercises?.length ? plan.exercises.map((e) => e.exerciseName).join('<br />') : '-';
       dayBtn.appendChild(mini);
     }
 
@@ -292,7 +307,6 @@ function renderTransferCalendar(modeValue) {
           hideTransferPanel();
           return;
         }
-
         schedules[dateKey] = JSON.parse(JSON.stringify(currentPlan));
         saveSchedules();
         renderCalendar();
@@ -331,15 +345,9 @@ function showTransferPanel(modeValue) {
 
   transferMode = modeValue;
   transferPanel.hidden = false;
-  pulseFade(transferPanel);
-
-  if (modeValue === 'send') {
-    transferHelp.textContent = '해당 운동스케줄을 보낼 날짜를 선택해주세요.';
-  } else {
-    transferHelp.textContent = '가져올 날짜를 선택해주세요.';
-  }
-
+  transferHelp.textContent = modeValue === 'send' ? '해당 운동스케줄을 보낼 날짜를 선택해주세요.' : '가져올 날짜를 선택해주세요.';
   renderTransferCalendar(modeValue);
+  pulseFade(transferPanel);
 }
 
 function getTodayPlan() {
@@ -348,8 +356,18 @@ function getTodayPlan() {
   return schedules[key] || null;
 }
 
+function resetStats() {
+  workoutDurations = [];
+  restDurations = [];
+  actionLogs = [];
+  statsCard.hidden = true;
+  statsSummary.textContent = '';
+  statsDetailList.innerHTML = '';
+}
+
 function buildQueueFromPlan(plan) {
   planForStopwatch = plan;
+  resetStats();
 
   if (!plan || !plan.exercises?.length) {
     queue = [];
@@ -381,14 +399,8 @@ function renderStopwatchHead() {
   }
 
   stopwatchBodypartEl.textContent = planForStopwatch.bodyPart;
-
   const current = queue[currentIndex];
-  if (!current || mode === 'finished') {
-    stopwatchExerciseEl.textContent = '모든 운동 완료';
-    return;
-  }
-
-  stopwatchExerciseEl.textContent = `${current.exerciseName} · ${current.reps}회`;
+  stopwatchExerciseEl.textContent = !current || mode === 'finished' ? '모든 운동 완료' : `${current.exerciseName} · ${current.reps}회`;
 }
 
 function renderQueue() {
@@ -406,9 +418,7 @@ function renderQueue() {
     const li = document.createElement('li');
     li.className = 'plan-item';
     if (item.setsRemaining <= 0) li.classList.add('done');
-    if ((mode === 'workout' || mode === 'rest') && index === currentIndex && item.setsRemaining > 0) {
-      li.classList.add('running');
-    }
+    if ((mode === 'workout' || mode === 'rest') && index === currentIndex && item.setsRemaining > 0) li.classList.add('running');
     li.textContent = `[${planForStopwatch.bodyPart}] ${item.exerciseName} / ${item.reps}회 / 남은 세트 ${item.setsRemaining}`;
     queueListEl.appendChild(li);
   });
@@ -441,6 +451,12 @@ function startTicker() {
   tickerId = setInterval(() => {
     elapsedMs = Date.now() - timerStartedAt;
     renderTimer();
+
+    if (mode === 'rest' && restLimitSeconds !== null && elapsedMs >= restLimitSeconds * 1000) {
+      restDurations.push(elapsedMs);
+      actionLogs.push(`[${new Date().toLocaleTimeString()}] 자동 재시작 (쉬는시간 ${formatTime(elapsedMs)})`);
+      handleStart();
+    }
   }, 10);
 }
 
@@ -468,10 +484,33 @@ function showInfoOverlay(text) {
 }
 
 function moveToNextExerciseIfNeeded() {
-  while (queue[currentIndex] && queue[currentIndex].setsRemaining <= 0) {
-    currentIndex += 1;
-  }
+  while (queue[currentIndex] && queue[currentIndex].setsRemaining <= 0) currentIndex += 1;
   if (!queue[currentIndex]) mode = 'finished';
+}
+
+function buildStats() {
+  const totalRest = restDurations.reduce((a, b) => a + b, 0);
+  const avgRest = restDurations.length ? totalRest / restDurations.length : 0;
+  const totalWorkout = workoutDurations.reduce((a, b) => a + b.duration, 0);
+  const avgWorkoutByExercise = queue.length ? totalWorkout / queue.length : 0;
+
+  statsSummary.textContent = `평균 쉬는시간: ${formatTime(avgRest)} / 1종목 당 평균 운동시간: ${formatTime(avgWorkoutByExercise)}`;
+  statsCard.hidden = false;
+
+  statsDetailList.innerHTML = '';
+  workoutDurations.forEach((entry, idx) => {
+    const li = document.createElement('li');
+    li.className = 'plan-item';
+    li.textContent = `${idx + 1}. ${entry.type} · ${entry.name} · ${entry.note} · ${formatTime(entry.duration)} · ${entry.time}`;
+    statsDetailList.appendChild(li);
+  });
+
+  actionLogs.forEach((entry) => {
+    const li = document.createElement('li');
+    li.className = 'plan-item';
+    li.textContent = entry;
+    statsDetailList.appendChild(li);
+  });
 }
 
 function handleStart() {
@@ -479,6 +518,7 @@ function handleStart() {
 
   if (mode === 'rest') {
     stopTicker();
+    if (elapsedMs > 0) restDurations.push(elapsedMs);
     resetTimerOnly();
     mode = 'workout';
     renderStopwatchHead();
@@ -487,6 +527,7 @@ function handleStart() {
     if (current) {
       const currentSet = current.sets - current.setsRemaining + 1;
       showInfoOverlay(`${current.exerciseName} • 현재세트 ${currentSet}세트 • 개수 ${current.reps}회`);
+      actionLogs.push(`[${new Date().toLocaleTimeString()}] START · ${current.exerciseName} · 현재세트 ${currentSet}`);
     }
     startTicker();
     return;
@@ -501,6 +542,7 @@ function handleStart() {
     if (current) {
       const currentSet = current.sets - current.setsRemaining + 1;
       showInfoOverlay(`${current.exerciseName} • 현재세트 ${currentSet}세트 • 개수 ${current.reps}회`);
+      actionLogs.push(`[${new Date().toLocaleTimeString()}] START · ${current.exerciseName} · 현재세트 ${currentSet}`);
     }
     startTicker();
     return;
@@ -514,6 +556,7 @@ function handleStop() {
 
   if (mode === 'rest') {
     stopTicker();
+    actionLogs.push(`[${new Date().toLocaleTimeString()}] STOP · 쉬는시간 일시정지 · ${formatTime(elapsedMs)}`);
     return;
   }
 
@@ -523,14 +566,24 @@ function handleStop() {
   if (!current) return;
 
   stopTicker();
+  workoutDurations.push({
+    type: 'WORKOUT',
+    name: current.exerciseName,
+    note: `개수 ${current.reps}회`,
+    duration: elapsedMs,
+    time: new Date().toLocaleTimeString()
+  });
+
   current.setsRemaining -= 1;
   showInfoOverlay(`${current.exerciseName} • 남은세트 ${Math.max(current.setsRemaining, 0)}세트 • 개수 ${current.reps}회`);
+  actionLogs.push(`[${new Date().toLocaleTimeString()}] STOP · ${current.exerciseName} · 남은세트 ${Math.max(current.setsRemaining, 0)}`);
 
   moveToNextExerciseIfNeeded();
   if (mode === 'finished') {
     resetTimerOnly();
     renderStopwatchHead();
     renderQueue();
+    buildStats();
     return;
   }
 
@@ -595,9 +648,7 @@ function switchTab(targetId) {
     else button.removeAttribute('aria-current');
   });
 
-  if (targetId === 'stopwatch-screen') {
-    buildQueueFromPlan(getTodayPlan());
-  }
+  if (targetId === 'stopwatch-screen') buildQueueFromPlan(getTodayPlan());
 }
 
 schedulerForm.addEventListener('submit', (event) => {
@@ -623,6 +674,26 @@ closeEntryBtn.addEventListener('click', closeEntryModal);
 startBtn.addEventListener('click', handleStart);
 stopBtn.addEventListener('click', handleStop);
 resetBtn.addEventListener('click', handleReset);
+
+restSettingBtn.addEventListener('click', () => {
+  restSecondsInput.value = restLimitSeconds === null ? '' : String(restLimitSeconds);
+  restSettingModal.showModal();
+});
+restSaveBtn.addEventListener('click', () => {
+  const v = Number(restSecondsInput.value);
+  restLimitSeconds = Number.isFinite(v) && v > 0 ? v : null;
+  restSettingModal.close();
+  showModal(restLimitSeconds === null ? '쉬는시간이 무제한으로 설정되었습니다.' : `쉬는시간 ${restLimitSeconds}초로 설정되었습니다.`, 2000);
+});
+restClearBtn.addEventListener('click', () => {
+  restLimitSeconds = null;
+  restSecondsInput.value = '';
+  showModal('쉬는시간 설정이 초기화되었습니다.', 2000);
+});
+restCloseBtn.addEventListener('click', () => restSettingModal.close());
+
+statsDetailBtn.addEventListener('click', () => statsDetailModal.showModal());
+statsDetailCloseBtn.addEventListener('click', () => statsDetailModal.close());
 
 prevYearBtn.addEventListener('click', goPrevYear);
 nextYearBtn.addEventListener('click', goNextYear);

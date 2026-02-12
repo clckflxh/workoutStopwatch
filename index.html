@@ -37,6 +37,7 @@
           <section class="card stopwatch-card">
             <h2 id="stopwatch-bodypart">운동스케줄 없음</h2>
             <p id="stopwatch-exercise" class="subtitle">오늘 일정이 없습니다.</p>
+            <button id="rest-setting-btn" type="button" class="rest-setting-btn" aria-label="쉬는시간 설정">⏱️</button>
 
             <p id="timer-meta" class="timer-meta" hidden></p>
             <p id="timer" class="timer" aria-live="assertive">00:00:00:00</p>
@@ -50,6 +51,12 @@
             </div>
           </section>
 
+
+          <section class="card stats-card" id="stats-card" hidden>
+            <h3>운동 통계</h3>
+            <p id="stats-summary"></p>
+            <button id="stats-detail-btn" type="button" class="btn">상세보기</button>
+          </section>
           <section class="card">
             <h3>스케줄러 연동 목록</h3>
             <ul id="queue-list" class="plan-list"></ul>
@@ -105,6 +112,23 @@
         <button type="button" class="btn remove-row">삭제</button>
       </div>
     </template>
+
+
+    <dialog id="rest-setting-modal" class="status-modal">
+      <p>쉬는시간 설정(초)</p>
+      <input id="rest-seconds-input" type="number" min="1" step="1" placeholder="미설정 시 무제한" />
+      <div class="form-actions">
+        <button id="rest-save-btn" class="btn primary" type="button">저장</button>
+        <button id="rest-clear-btn" class="btn" type="button">초기화</button>
+        <button id="rest-close-btn" class="btn" type="button">닫기</button>
+      </div>
+    </dialog>
+
+    <dialog id="stats-detail-modal" class="status-modal">
+      <h4>상세 로그</h4>
+      <ul id="stats-detail-list" class="plan-list"></ul>
+      <button id="stats-detail-close-btn" class="btn primary" type="button">닫기</button>
+    </dialog>
 
     <dialog id="status-modal" class="status-modal">
       <p id="modal-message"></p>
